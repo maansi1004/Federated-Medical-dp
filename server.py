@@ -4,7 +4,7 @@ from collections import OrderedDict
 from model import SimpleMedicalCNN
 from typing import List, Tuple, Dict
 
-# --- FIXED: Custom Aggregation Strategy to prevent Node Volume Bias ---
+# --- Custom Aggregation Strategy preventing Node Volume Bias with FedProx Configs ---
 class EqualWeightFedAvg(fl.server.strategy.FedAvg):
     def aggregate_fit(self, server_round: int, results: List[Tuple[fl.server.client_proxy.ClientProxy, fl.common.FitRes]], failures: List[BaseException]):
         if not results:
@@ -22,8 +22,8 @@ class EqualWeightFedAvg(fl.server.strategy.FedAvg):
         
         aggregated_parameters = fl.common.ndarrays_to_parameters(averaged_weights)
         
-        # Save checkpoints on final execution round
-        if server_round == 20 and aggregated_parameters is not None:
+        # Save checkpoints on final execution round (Updated to match target round)
+        if server_round == 40 and aggregated_parameters is not None:
             print("\n[SERVER] Final Round Complete! Saving Global Model Weights...")
             model = SimpleMedicalCNN()
             params_dict = zip(model.state_dict().keys(), averaged_weights)
@@ -39,10 +39,14 @@ def aggregate_evaluate_metrics(metrics: List[Tuple[int, Dict[str, float]]]) -> D
     return {"global_accuracy": sum(weighted_accuracies) / total_examples}
 
 def fit_config(server_round: int):
-    return {"current_round": server_round}
+    return {
+        "current_round": server_round,
+        # --- PHASE 3 FIX: Broadcast leash stiffness down to the local nodes ---
+        "proximal-mu": 0.1  
+    }
 
 if __name__ == "__main__":
-    print("\n[SERVER] Launching Equal-Weight Centralized Aggregation Server...")
+    print("\n[SERVER] Launching Equal-Weight Centralized Aggregation Server with FedProx Hooks...")
     strategy = EqualWeightFedAvg(
         min_fit_clients=3,         
         min_available_clients=3,   
@@ -51,6 +55,6 @@ if __name__ == "__main__":
     )
     fl.server.start_server(
         server_address="127.0.0.1:8080",
-        config=fl.server.ServerConfig(num_rounds=20),
+        config=fl.server.ServerConfig(num_rounds=40), # Extended for stable DP convergence
         strategy=strategy,
     )

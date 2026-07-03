@@ -8,7 +8,7 @@ def launch_federated_system():
     server_process = subprocess.Popen([sys.executable, "server.py"])
     
     # Give the server 3 seconds to boot up and start listening on port 8080
-    time.sleep(3)
+    time.sleep(8)
     
     client_processes = []
     print("[SYSTEM] Spawning 3 Hospital Client Nodes in the background...")

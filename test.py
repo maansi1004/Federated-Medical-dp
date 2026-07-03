@@ -1,0 +1,1 @@
+from data_setup import get_hospital_data; get_hospital_data()
