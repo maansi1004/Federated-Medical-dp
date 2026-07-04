@@ -1,45 +1,29 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class SimpleMedicalCNN(nn.Module):
     def __init__(self):
         super(SimpleMedicalCNN, self).__init__()
+        # Layer 1: Grayscale Input -> 16 Filter Channels
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, padding=1)
+        self.gn1 = nn.GroupNorm(2, 16) # Opacus-safe alternative to BatchNorm
         
-        # Convolutional Block 1
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, padding=1)
-        # FIX: 4 groups processing 16 channels (4 channels per group)
-        self.gn1 = nn.GroupNorm(num_groups=4, num_channels=16)
+        # Layer 2: 16 Channels -> 32 Filter Channels
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        self.gn2 = nn.GroupNorm(4, 32)
         
-        # Convolutional Block 2
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
-        # FIX: 4 groups processing 32 channels (8 channels per group)
-        self.gn2 = nn.GroupNorm(num_groups=4, num_channels=32)
+        # Spatial reduction pooling down to 14x14 grid
+        self.pool = nn.MaxPool2d(2, 2)
         
-        # Pooling
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        
-        # --- OPTIMIZATION: Global Average Pooling (GAP) ---
-        # Instead of a massive flattening layer that blows up parameter counts,
-        # GAP reduces the spatial dimensions (H x W) down to a 1x1 vector per channel.
-        # This slashes parameter sizes, heavily reducing the vector space vulnerable to DP noise!
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
-        
-        # Final Classifier Head
-        self.fc = nn.Linear(32, 2)
+        # Classification Head: 32 channels * 14 * 14 features = 6272
+        self.fc = nn.Linear(6272, 2)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        # Block 1: Conv -> GroupNorm -> ReLU -> Pool
-        x = self.pool(F.relu(self.gn1(self.conv1(x))))
-        
-        # Block 2: Conv -> GroupNorm -> ReLU -> Pool
-        x = self.pool(F.relu(self.gn2(self.conv2(x))))
-        
-        # Compress spatial structures down efficiently
-        x = self.adaptive_pool(x)
-        x = torch.flatten(x, 1) 
-        
-        # Output Logits
+        x = self.relu(self.gn1(self.conv1(x)))
+        x = self.relu(self.gn2(self.conv2(x)))
+        x = self.pool(x)
+        x = x.view(x.size(0), -1) # Flatten cleanly to 6272 features
         return self.fc(x)
 
 def evaluate_model(model, data_loader):

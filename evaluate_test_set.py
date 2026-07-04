@@ -1,19 +1,26 @@
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
-from torch.utils.data import TensorDataset, DataLoader
 from model import SimpleMedicalCNN
 
 def check_clinical_metrics(thresholds=[0.5, 0.6, 0.7, 0.8, 0.9]):
     model = SimpleMedicalCNN()
+    
     try:
+        # Load your original 86% federated checkpoint model file
         state_dict = torch.load("federated_model.pth")
         clean_state_dict = {k.replace("_module.", ""): v for k, v in state_dict.items()}
-        model.load_state_dict(clean_state_dict)
-    except FileNotFoundError:
-        print("[ERROR] 'federated_model.pth' not found. Run training first!")
+        model.load_state_dict(clean_state_dict, strict=True)
+        print("💾 Success! Loaded original custom Federated CNN weights cleanly.")
+    except Exception as e:
+        print(f"[ERROR] Could not load weights: {e}")
+        print("Hint: If keys mismatch, delete 'federated_model.pth' and re-run your training pipeline.")
         return
+        
     model.eval()
 
+    # Load dataset
     raw_data = np.load('pneumoniamnist.npz')
     X_test = raw_data['test_images']
     y_test = raw_data['test_labels'].squeeze()
@@ -22,7 +29,6 @@ def check_clinical_metrics(thresholds=[0.5, 0.6, 0.7, 0.8, 0.9]):
     y_tensor = torch.tensor(y_test, dtype=torch.long)
     test_loader = DataLoader(TensorDataset(X_tensor, y_tensor), batch_size=32, shuffle=False)
 
-    # Collect raw probabilities once, then sweep thresholds without re-running the model
     all_probs, all_labels = [], []
     with torch.no_grad():
         for images, labels in test_loader:

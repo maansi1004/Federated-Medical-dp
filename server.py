@@ -2,6 +2,8 @@ import flwr as fl
 import torch
 from collections import OrderedDict
 from model import SimpleMedicalCNN
+# Change this line at the top of client.py, server.py, and train_baseline.py:
+# from model import PrivateTransferMedicalCNN as SimpleMedicalCNN
 from typing import List, Tuple, Dict
 
 # --- Custom Aggregation Strategy preventing Node Volume Bias with FedProx Configs ---
@@ -23,7 +25,7 @@ class EqualWeightFedAvg(fl.server.strategy.FedAvg):
         aggregated_parameters = fl.common.ndarrays_to_parameters(averaged_weights)
         
         # Save checkpoints on final execution round (Updated to match target round)
-        if server_round == 40 and aggregated_parameters is not None:
+        if server_round == 10 and aggregated_parameters is not None:
             print("\n[SERVER] Final Round Complete! Saving Global Model Weights...")
             model = SimpleMedicalCNN()
             params_dict = zip(model.state_dict().keys(), averaged_weights)
@@ -55,6 +57,6 @@ if __name__ == "__main__":
     )
     fl.server.start_server(
         server_address="127.0.0.1:8080",
-        config=fl.server.ServerConfig(num_rounds=40), # Extended for stable DP convergence
+        config=fl.server.ServerConfig(num_rounds=10), # Extended for stable DP convergence
         strategy=strategy,
     )

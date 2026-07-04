@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, ConcatDataset
 from model import SimpleMedicalCNN
+# Change this line at the top of client.py, server.py, and train_baseline.py:
+# from model import PrivateTransferMedicalCNN as SimpleMedicalCNN
 from data_setup import get_hospital_data
 
 def train_baseline():
